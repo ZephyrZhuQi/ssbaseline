@@ -499,3 +499,95 @@ class M4CDecodingBCEWithMaskLoss(nn.Module):
         count = torch.max(torch.sum(loss_mask), self.one.to(losses.device))
         loss = torch.sum(losses) / count
         return loss
+
+@registry.register_loss("m4c_decoding_bce_with_mask_policy_gradient")
+class M4CDecodingBCEWithMaskLoss(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.one = torch.Tensor([1.])
+        import editdistance
+        self.get_edit_distance = editdistance.eval
+
+    def get_anls(self, s1, s2):
+        s1 = s1.lower().strip()
+        s2 = s2.lower().strip()
+        iou = 1 - self.get_edit_distance(s1, s2) / max(len(s1), len(s2))
+        anls = iou if iou >= .5 else 0.
+        return anls
+
+    def forward(self, sample_list, model_output):
+        scores = model_output["scores"]
+        targets = sample_list["targets"]
+        loss_mask = sample_list["train_loss_mask"]
+        assert scores.dim() == 3 and loss_mask.dim() == 2
+
+        losses = F.binary_cross_entropy_with_logits(
+            scores, targets, reduction="none"
+        )
+        losses *= loss_mask.unsqueeze(-1)
+
+        # add the anls as additional rewards
+        # rewards calculation
+        batch_size = sample_list.context_tokens_enc.size(0)
+        pred_answers = scores.argmax(dim=-1)
+        context_tokens_enc = sample_list.context_tokens_enc.cpu().numpy()
+        gt_answers_enc = sample_list.gt_answers_enc.cpu().numpy()
+        answer_processor = registry.get(
+            sample_list.dataset_name + "_answer_processor"
+        )
+        answer_space_size = answer_processor.get_true_vocab_size()
+
+        predictions = []
+        from pythia.utils.objects_to_byte_tensor import dec_bytes2obj
+        from pythia.utils.text_utils import word_tokenize
+        for idx in range(batch_size):
+            context_tokens = dec_bytes2obj(context_tokens_enc[idx])
+            answer_words = []
+            for answer_id in pred_answers[idx].tolist():
+                if answer_id >= answer_space_size:
+                    answer_id -= answer_space_size
+                    answer_words.append(
+                        word_tokenize(context_tokens[answer_id])
+                    )
+                else:
+                    if answer_id == answer_processor.EOS_IDX:
+                        break
+                    answer_words.append(
+                        answer_processor.answer_vocab.idx2word(answer_id)
+                    )
+
+            pred_answer = ' '.join(answer_words).replace(" 's", "'s")
+            gt_answers = dec_bytes2obj(gt_answers_enc[idx])
+            predictions.append({
+                "pred_answer": pred_answer,
+                "gt_answers": gt_answers,
+            })
+
+        pred_scores = []
+        for entry in predictions:
+            anls = max(
+                self.get_anls(entry['pred_answer'], gt)
+                for gt in entry['gt_answers']
+            )
+            pred_scores.append(anls)
+
+        rewards = torch.tensor(pred_scores).reshape(-1,1).to(scores.device)
+
+        max_element = torch.argmax(F.softmax(scores,-1),-1) # 21*12
+        fake_targets = torch.zeros_like(targets) # 21*12*5050
+        for i in range(fake_targets.shape[0]):
+            fake_targets[i][range(fake_targets.shape[1]),max_element[i]]=1
+        fake_bce = F.binary_cross_entropy_with_logits(
+            scores, fake_targets, reduction="none"
+        )
+        # import pdb; pdb.set_trace()
+        fake_bce *= loss_mask.unsqueeze(-1)
+        fake_bce *= (rewards-0.5+1e-8).unsqueeze(-1)
+
+        count = torch.max(torch.sum(loss_mask), self.one.to(losses.device))
+        loss = torch.sum(losses) / count
+
+        alpha = 1000
+        
+        loss = alpha*loss +  torch.sum(fake_bce)/count
+        return loss

@@ -87,6 +87,7 @@ from pythia.utils.text_utils import VocabDict
 from pythia.utils.vocab import Vocab, WordToVectorDict
 from pythia.utils.phoc import build_phoc
 
+import editdistance
 
 class BaseProcessor:
     """Every processor in Pythia needs to inherit this class for compatability
@@ -937,10 +938,18 @@ class CopyProcessor(BaseProcessor):
 
     def __call__(self, item):
         blob = item["blob"]
-        final_blob = np.zeros((self.max_length,) + blob.shape[1:], blob.dtype)
-        final_blob[:len(blob)] = blob[:len(final_blob)]
+        typ = item["type"]
+        if typ == "obj":
+            final_blob = np.zeros((self.max_length,) + blob.shape[1:], blob.dtype)
+            final_blob[:len(blob)] = blob[:len(final_blob)]
+            final_blob = torch.from_numpy(final_blob)
+        elif typ == "ocr":
+            final_blob = np.zeros((self.max_length,) + (4,), np.float)
+            if len(blob) != 0:
+                final_blob[:len(blob)] = blob[:len(final_blob)]
+            final_blob = torch.from_numpy(final_blob).float()
 
-        return {"blob": torch.from_numpy(final_blob)}
+        return {"blob": final_blob}
 
 
 @registry.register_processor("bert_tokenizer")
@@ -1012,8 +1021,15 @@ class M4CAnswerProcessor(BaseProcessor):
         self.max_copy_steps = config.max_copy_steps
         assert self.max_copy_steps >= 1
 
+    def get_anls(self, s1, s2):
+        s1 = s1.lower().strip()
+        s2 = s2.lower().strip()
+        iou = 1 - editdistance.eval(s1, s2) / max(len(s1), len(s2))
+        anls = iou if iou >= .5 else 0.
+        return anls
+
     def match_answer_to_vocab_ocr_seq(
-        self, answer, vocab2idx_dict, ocr2inds_dict, max_match_num=20
+        self, answer, vocab2idx_dict, ocr_tokens, ocr_num, ocr2inds_dict, max_match_num=20
     ):
         """
         Match an answer to a list of sequences of indices
@@ -1035,7 +1051,18 @@ class M4CAnswerProcessor(BaseProcessor):
             matched_inds.extend(
                 [num_vocab + idx for idx in ocr2inds_dict[word]]
             )
-            if len(matched_inds) == 0:
+            # no exact matched ocr, find most similar one
+            if len(matched_inds) == 0 and ocr_num != 0:
+                ocr_scores = torch.zeros(ocr_num, dtype=torch.float)
+                for i in range(ocr_num):
+                    ocr_scores[i] = self.get_anls(word, ocr_tokens[i])
+                most_similar_id = torch.argmax(ocr_scores).item()
+                most_similar_score = self.get_anls(word, ocr_tokens[most_similar_id])
+                if most_similar_score >= 0.5:
+                    matched_inds.append(num_vocab + most_similar_id)
+                else:
+                    return []
+            if len(matched_inds) == 0 and ocr_num == 0:
                 return []
             answer_word_matches.append(matched_inds)
 
@@ -1102,7 +1129,7 @@ class M4CAnswerProcessor(BaseProcessor):
             ocr2inds_dict[token].append(idx)
         answer_dec_inds = [
             self.match_answer_to_vocab_ocr_seq(
-                a, self.answer_vocab.word2idx_dict, ocr2inds_dict
+                a, self.answer_vocab.word2idx_dict, item["context_tokens"], item["context_length"], ocr2inds_dict
             ) for a in answers
         ]
 

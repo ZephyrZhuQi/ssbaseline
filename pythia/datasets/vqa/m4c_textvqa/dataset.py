@@ -64,12 +64,13 @@ class M4CTextVQADataset(TextVQADataset):
             sample_info["question_id"], dtype=torch.int
         )
 
-        if isinstance(sample_info["image_id"], int):
-            current_sample.image_id = torch.tensor(
-                sample_info["image_id"], dtype=torch.int
-            )
-        else:
-            current_sample.image_id = sample_info["image_id"]
+        # if isinstance(sample_info["image_id"], int):
+        #     current_sample.image_id = torch.tensor(
+        #         sample_info["image_id"], dtype=torch.int
+        #     )
+        # else:
+        #    current_sample.image_id = sample_info["image_id"]
+        current_sample.image_id = sample_info["image_id"]
 
         if self._use_features is True:
             features = self.features_db[idx]
@@ -96,7 +97,7 @@ class M4CTextVQADataset(TextVQADataset):
         # 2. Load object
         # object bounding box information
         sample.obj_bbox_coordinates = self.copy_processor(
-            {"blob": sample_info["obj_normalized_boxes"]}
+            {"blob": sample_info["obj_normalized_boxes"],"type":"obj"}
         )["blob"]
 
         # 3. Load OCR
@@ -131,7 +132,7 @@ class M4CTextVQADataset(TextVQADataset):
             # New imdb format: OCR bounding boxes are already pre-computed
             max_len = self.config.processors.answer_processor.params.max_length
             sample.ocr_bbox_coordinates = self.copy_processor(
-                {"blob": sample_info['ocr_normalized_boxes']}
+                {"blob": sample_info['ocr_normalized_boxes'],"type":"ocr"}
             )["blob"][:max_len]
         else:
             # Old imdb format: OCR bounding boxes are computed on-the-fly
@@ -151,6 +152,7 @@ class M4CTextVQADataset(TextVQADataset):
             answer_processor_arg = {
                 "answers": answers,
                 "context_tokens": sample.context_tokens,
+                "context_length": sample.context_info_0.max_features,
             }
             processed_answers = self.answer_processor(answer_processor_arg)
 

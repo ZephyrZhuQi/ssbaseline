@@ -9,14 +9,14 @@ dataset_attributes:
       val:
       - qi_stvqa_obj_frcn_features/ST-VQA,open_images/stvqa_ocr_frcn_features/ST-VQA,open_images/stvqa_trans_feature/ST-VQA
       test:
-      - qi_stvqa_obj_frcn_features/test_task3_imgs,open_images/stvqa_ocr_frcn_features/test_task3_imgs,open_images/stvqa_trans_feature/test_task3_imgs
+      - qi_stvqa_obj_frcn_features/test_task1_imgs,open_images/stvqa_ocr_frcn_features/test_task1_imgs,open_images/stvqa_trans_feature/test_task1_imgs
     imdb_files:
       train:
       - imdb/ssbaseline_stvqa/qi_obj_frcn_imdb_subtrain.npy
       val:
       - imdb/ssbaseline_stvqa/qi_obj_frcn_imdb_subval.npy
       test:
-      - imdb/ssbaseline_stvqa/qi_obj_frcn_imdb_test_task3.npy
+      - imdb/ssbaseline_stvqa/qi_obj_frcn_imdb_test_task1.npy
     processors:
       text_processor:
         type: bert_tokenizer
