@@ -204,19 +204,19 @@ class AttentionTwoTextEmbedding(nn.Module):
         )
         self.relu = nn.ReLU()
 
-        self.conv1_linguistic = nn.Conv1d(
+        self.conv1_semantic = nn.Conv1d(
             in_channels=hidden_dim,
             out_channels=conv1_out,
             kernel_size=kernel_size,
             padding=padding,
         )
-        self.conv2_linguistic = nn.Conv1d(
+        self.conv2_semantic = nn.Conv1d(
             in_channels=conv1_out,
             out_channels=conv2_out,
             kernel_size=kernel_size,
             padding=padding,
         )
-        self.relu_linguistic = nn.ReLU()
+        self.relu_semantic = nn.ReLU()
 
         self.conv1_o = nn.Conv1d(
             in_channels=hidden_dim,
@@ -248,17 +248,17 @@ class AttentionTwoTextEmbedding(nn.Module):
         # N * (conv2_out * hidden_dim)
         qtt_feature_concat = qtt_feature.view(batch_size, -1)
 
-        # linguistic part self-attention
-        qatt_conv1_linguistic = self.conv1_linguistic(bert_reshape)  # N x conv1_out x T
-        qatt_relu_linguistic = self.relu_linguistic(qatt_conv1_linguistic)
-        qatt_conv2_linguistic = self.conv2_linguistic(qatt_relu_linguistic)  # N x conv2_out x T
+        # semantic part self-attention
+        qatt_conv1_semantic = self.conv1_semantic(bert_reshape)  # N x conv1_out x T
+        qatt_relu_semantic = self.relu_semantic(qatt_conv1_semantic)
+        qatt_conv2_semantic = self.conv2_semantic(qatt_relu_semantic)  # N x conv2_out x T
 
         # Over last dim
-        qtt_softmax_linguistic = nn.functional.softmax(qatt_conv2_linguistic, dim=2)
+        qtt_softmax_semantic = nn.functional.softmax(qatt_conv2_semantic, dim=2)
         # N * conv2_out * hidden_dim
-        qtt_feature_linguistic = torch.bmm(qtt_softmax_linguistic, x)
+        qtt_feature_semantic = torch.bmm(qtt_softmax_semantic, x)
         # N * (conv2_out * hidden_dim)
-        qtt_feature_concat_linguistic = qtt_feature_linguistic.view(batch_size, -1)
+        qtt_feature_concat_semantic = qtt_feature_semantic.view(batch_size, -1)
 
         qatt_conv1_o = self.conv1_o(bert_reshape)  # N x conv1_out x T
         qatt_relu_o = self.relu_o(qatt_conv1_o)
@@ -271,7 +271,7 @@ class AttentionTwoTextEmbedding(nn.Module):
         # N * (conv2_out * hidden_dim)
         qtt_feature_concat_o = qtt_feature_o.view(batch_size, -1)
 
-        return x, qtt_feature_concat, qtt_feature_concat_linguistic, qtt_feature_concat_o
+        return x, qtt_feature_concat, qtt_feature_concat_semantic, qtt_feature_concat_o
 
 class ImageEmbedding(nn.Module):
     """

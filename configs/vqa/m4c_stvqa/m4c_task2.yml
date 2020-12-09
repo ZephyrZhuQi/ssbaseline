@@ -57,7 +57,7 @@ model_attributes:
     ocr:
       mmt_in_dim: 3464  # 300 (FastText) + 604 (PHOC) + 2048 (Faster R-CNN) + 512(RecogCNN) # 50 (all zeros; legacy)
       visual_mmt_in_dim: 2560 # 2048+512
-      linguistic_mmt_in_dim: 1416 # 300 (FastText) + 604 (PHOC) + 512(RecogCNN)
+      semantic_mmt_in_dim: 1416 # 300 (FastText) + 604 (PHOC) + 512(RecogCNN)
       dropout_prob: 0.1
     mmt:
       hidden_size: 768

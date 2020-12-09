@@ -79,7 +79,7 @@ class M4C(BaseModel):
         text_embedding_model = TextEmbedding(embedding_type, **embedding_kwargs)
         self.text_embedding_model = text_embedding_model
         self.s_visual_to_mmt_in = nn.Linear(self.text_embedding_model.text_out_dim, self.mmt_config.hidden_size)
-        self.s_linguistic_to_mmt_in = nn.Linear(self.text_embedding_model.text_out_dim, self.mmt_config.hidden_size)
+        self.s_semantic_to_mmt_in = nn.Linear(self.text_embedding_model.text_out_dim, self.mmt_config.hidden_size)
         self.s_o_to_mmt_in = nn.Linear(self.text_embedding_model.text_out_dim, self.mmt_config.hidden_size)
 
     def _init_feature_embeddings(self):
@@ -90,7 +90,7 @@ class M4C(BaseModel):
             self.text_embedding_model.text_out_dim,
             **feature_attn_model_params
         )
-        linguistic_feature_embedding = ImageEmbedding(
+        semantic_feature_embedding = ImageEmbedding(
             self.mmt_config.hidden_size,
             self.text_embedding_model.text_out_dim,
             **feature_attn_model_params
@@ -101,7 +101,7 @@ class M4C(BaseModel):
             **feature_attn_model_params
         )
         self.ocr_visual_feature_embedding = visual_feature_embedding
-        self.ocr_linguistic_feature_embedding = linguistic_feature_embedding
+        self.ocr_semantic_feature_embedding = semantic_feature_embedding
         self.obj_feature_embedding = obj_feature_embedding
 
     def _build_obj_encoding(self):
@@ -158,17 +158,17 @@ class M4C(BaseModel):
             4, self.mmt_config.hidden_size
         )
 
-        self.linear_ocr_linguistic_feat_to_mmt_in = nn.Linear(
-            self.config.ocr.linguistic_mmt_in_dim, self.mmt_config.hidden_size
+        self.linear_ocr_semantic_feat_to_mmt_in = nn.Linear(
+            self.config.ocr.semantic_mmt_in_dim, self.mmt_config.hidden_size
         )
 
         self.ocr_feat_layer_norm = BertLayerNorm(self.mmt_config.hidden_size)
         self.ocr_visual_feat_layer_norm = BertLayerNorm(self.mmt_config.hidden_size)
         self.ocr_bbox_layer_norm = BertLayerNorm(self.mmt_config.hidden_size)
-        self.ocr_linguistic_feat_layer_norm = BertLayerNorm(self.mmt_config.hidden_size)
+        self.ocr_semantic_feat_layer_norm = BertLayerNorm(self.mmt_config.hidden_size)
         self.ocr_drop = nn.Dropout(self.config.ocr.dropout_prob)
         self.ocr_visual_drop = nn.Dropout(self.config.ocr.dropout_prob)
-        self.ocr_linguistic_drop = nn.Dropout(self.config.ocr.dropout_prob)
+        self.ocr_semantic_drop = nn.Dropout(self.config.ocr.dropout_prob)
 
     def _build_mmt(self):
         self.mmt = MMT(self.mmt_config)
@@ -272,7 +272,7 @@ class M4C(BaseModel):
             [ocr_fasttext, ocr_phoc, ocr_fc7, ocr_recogcnn],
             dim=-1
         )
-        ocr_linguistic_feat = torch.cat(
+        ocr_semantic_feat = torch.cat(
             [ocr_fasttext, ocr_phoc, ocr_recogcnn],
             dim=-1
         )
@@ -297,13 +297,13 @@ class M4C(BaseModel):
                 self.linear_ocr_bbox_to_mmt_in(ocr_bbox)
             )
         )
-        ocr_linguistic = self.ocr_linguistic_feat_layer_norm(
-            self.linear_ocr_linguistic_feat_to_mmt_in(ocr_linguistic_feat)
+        ocr_semantic = self.ocr_semantic_feat_layer_norm(
+            self.linear_ocr_semantic_feat_to_mmt_in(ocr_semantic_feat)
         ) 
         ocr_visual = self.ocr_visual_drop(ocr_visual)
-        ocr_linguistic = self.ocr_linguistic_drop(ocr_linguistic)
+        ocr_semantic = self.ocr_semantic_drop(ocr_semantic)
         fwd_results['ocr_visual'] = ocr_visual
-        fwd_results['ocr_linguistic'] = ocr_linguistic
+        fwd_results['ocr_semantic'] = ocr_semantic
         # binary mask of valid OCR vs padding
         ocr_nums = sample_list.context_info_0.max_features
         fwd_results['ocr_mask'] = _get_mask(ocr_nums, ocr_mmt_in.size(1))
@@ -319,20 +319,20 @@ class M4C(BaseModel):
             txt_inds=fwd_results['txt_inds'],
             txt_mask=fwd_results['txt_mask']
         )
-        _, s_visual, s_linguistic, s_o = self.process_text_embedding(text_bert_out)
+        _, s_visual, s_semantic, s_o = self.process_text_embedding(text_bert_out)
         # fwd_results['txt_emb'] = self.text_bert_out_linear(text_bert_out)
 
-        # attend to ocr under the guidance of s_visual and s_linguistic
+        # attend to ocr under the guidance of s_visual and s_semantic
         ocr_visual, _ = self.ocr_visual_feature_embedding(fwd_results['ocr_visual'], s_visual, sample_list.context_info_0.max_features)
-        ocr_linguistic, _ = self.ocr_linguistic_feature_embedding(fwd_results['ocr_linguistic'], s_linguistic, sample_list.context_info_0.max_features)
+        ocr_semantic, _ = self.ocr_semantic_feature_embedding(fwd_results['ocr_semantic'], s_semantic, sample_list.context_info_0.max_features)
         ocr_visual = ocr_visual.unsqueeze(1)
-        ocr_linguistic = ocr_linguistic.unsqueeze(1)
+        ocr_semantic = ocr_semantic.unsqueeze(1)
         ocr_visual_mask = torch.ones(ocr_visual.size(0),ocr_visual.size(1),dtype=torch.float32,device=ocr_visual.device)
-        ocr_linguistic_mask = torch.ones(ocr_linguistic.size(0),ocr_linguistic.size(1),dtype=torch.float32,device=ocr_linguistic.device)
+        ocr_semantic_mask = torch.ones(ocr_semantic.size(0),ocr_semantic.size(1),dtype=torch.float32,device=ocr_semantic.device)
         s_visual = self.s_visual_to_mmt_in(s_visual.unsqueeze(1))
-        s_linguistic = self.s_linguistic_to_mmt_in(s_linguistic.unsqueeze(1))
+        s_semantic = self.s_semantic_to_mmt_in(s_semantic.unsqueeze(1))
         txt_visual_mask = torch.ones(s_visual.size(0),s_visual.size(1),dtype=torch.float32,device=s_visual.device) 
-        txt_linguistic_mask = torch.ones(s_linguistic.size(0),s_linguistic.size(1),dtype=torch.float32,device=s_linguistic.device) 
+        txt_semantic_mask = torch.ones(s_semantic.size(0),s_semantic.size(1),dtype=torch.float32,device=s_semantic.device) 
         obj, _ = self.obj_feature_embedding(fwd_results['obj_mmt_in'], s_o, sample_list.image_info_0.max_features)
         obj = obj.unsqueeze(1)
         obj_mask = torch.ones(obj.size(0),obj.size(1),dtype=torch.float32,device=obj.device)
@@ -346,10 +346,10 @@ class M4C(BaseModel):
             txt_visual_mask=txt_visual_mask,
             ocr_visual=ocr_visual,
             ocr_visual_mask=ocr_visual_mask,
-            txt_linguistic=s_linguistic,
-            txt_linguistic_mask=txt_linguistic_mask,
-            ocr_linguistic=ocr_linguistic,
-            ocr_linguistic_mask=ocr_linguistic_mask,
+            txt_semantic=s_semantic,
+            txt_semantic_mask=txt_semantic_mask,
+            ocr_semantic=ocr_semantic,
+            ocr_semantic_mask=ocr_semantic_mask,
             # obj_emb=fwd_results['obj_mmt_in'],
             # obj_mask=fwd_results['obj_mask'],
             obj = obj,
@@ -365,9 +365,9 @@ class M4C(BaseModel):
 
     def _forward_output(self, sample_list, fwd_results):
         visual = fwd_results['mmt_txt_visual_output']*fwd_results['mmt_ocr_visual_output']
-        linguistic = fwd_results['mmt_txt_linguistic_output']*fwd_results['mmt_ocr_linguistic_output']
+        semantic = fwd_results['mmt_txt_semantic_output']*fwd_results['mmt_ocr_semantic_output']
         obj = fwd_results['mmt_s_o_output']*fwd_results['mmt_obj_output']
-        update_joint_embedding = torch.cat((visual, linguistic, obj),dim=-1) # torch.Size([32, 1, 1536])
+        update_joint_embedding = torch.cat((visual, semantic, obj),dim=-1) # torch.Size([32, 1, 1536])
         update_joint_embedding = self.linear_joint(update_joint_embedding)
         mmt_dec_output = fwd_results['mmt_dec_output']
         score_feature = torch.cat([update_joint_embedding, mmt_dec_output[:,1:,:]], dim=-2)
@@ -472,10 +472,10 @@ class MMT(BertPreTrainedModel):
                 txt_visual_mask,
                 ocr_visual,
                 ocr_visual_mask,
-                txt_linguistic,
-                txt_linguistic_mask,
-                ocr_linguistic,
-                ocr_linguistic_mask,
+                txt_semantic,
+                txt_semantic_mask,
+                ocr_semantic,
+                ocr_semantic_mask,
                 # obj_emb,
                 # obj_mask,
                 obj,
@@ -502,19 +502,19 @@ class MMT(BertPreTrainedModel):
             device=dec_emb.device
         )
         encoder_inputs = torch.cat(
-            [txt_visual, ocr_visual, txt_linguistic, ocr_linguistic, s_o, obj, ocr_emb, dec_emb],
+            [txt_visual, ocr_visual, txt_semantic, ocr_semantic, s_o, obj, ocr_emb, dec_emb],
             dim=1
         )
         attention_mask = torch.cat(
-            [txt_visual_mask, ocr_visual_mask, txt_linguistic_mask, ocr_linguistic_mask, s_o_mask, obj_mask, ocr_mask, dec_mask],
+            [txt_visual_mask, ocr_visual_mask, txt_semantic_mask, ocr_semantic_mask, s_o_mask, obj_mask, ocr_mask, dec_mask],
             dim=1
         )
 
         # offsets of each modality in the joint embedding space
         txt_visual_max_num = txt_visual_mask.size(-1)
         ocr_visual_max_num = ocr_visual_mask.size(-1)
-        txt_linguistic_max_num = txt_linguistic_mask.size(-1)
-        ocr_linguistic_max_num = ocr_linguistic_mask.size(-1)
+        txt_semantic_max_num = txt_semantic_mask.size(-1)
+        ocr_semantic_max_num = ocr_semantic_mask.size(-1)
         s_o_max_num = s_o_mask.size(-1)
         obj_max_num = obj_mask.size(-1)
         ocr_max_num = ocr_mask.size(-1)
@@ -523,15 +523,15 @@ class MMT(BertPreTrainedModel):
         txt_visual_end = txt_visual_begin + txt_visual_max_num
         ocr_visual_begin = txt_visual_max_num
         ocr_visual_end = ocr_visual_begin + ocr_visual_max_num
-        txt_linguistic_begin = txt_visual_max_num + ocr_visual_max_num
-        txt_linguistic_end = txt_linguistic_begin + txt_linguistic_max_num
-        ocr_linguistic_begin = txt_visual_max_num + ocr_visual_max_num + txt_linguistic_max_num
-        ocr_linguistic_end = ocr_linguistic_begin + ocr_linguistic_max_num
-        s_o_begin = txt_visual_max_num + ocr_visual_max_num + txt_linguistic_max_num + ocr_linguistic_max_num
+        txt_semantic_begin = txt_visual_max_num + ocr_visual_max_num
+        txt_semantic_end = txt_semantic_begin + txt_semantic_max_num
+        ocr_semantic_begin = txt_visual_max_num + ocr_visual_max_num + txt_semantic_max_num
+        ocr_semantic_end = ocr_semantic_begin + ocr_semantic_max_num
+        s_o_begin = txt_visual_max_num + ocr_visual_max_num + txt_semantic_max_num + ocr_semantic_max_num
         s_o_end = s_o_begin + s_o_max_num
-        obj_begin = txt_visual_max_num + ocr_visual_max_num + txt_linguistic_max_num + ocr_linguistic_max_num + s_o_max_num
+        obj_begin = txt_visual_max_num + ocr_visual_max_num + txt_semantic_max_num + ocr_semantic_max_num + s_o_max_num
         obj_end = obj_begin + obj_max_num
-        ocr_begin = txt_visual_max_num + ocr_visual_max_num + txt_linguistic_max_num + ocr_linguistic_max_num + s_o_max_num + obj_max_num
+        ocr_begin = txt_visual_max_num + ocr_visual_max_num + txt_semantic_max_num + ocr_semantic_max_num + s_o_max_num + obj_max_num
         ocr_end = ocr_begin + ocr_max_num
         
         # We create a 3D attention mask from a 2D tensor mask.
@@ -565,8 +565,8 @@ class MMT(BertPreTrainedModel):
         mmt_seq_output = encoder_outputs[0]
         mmt_txt_visual_output = mmt_seq_output[:, txt_visual_begin:txt_visual_end]
         mmt_ocr_visual_output = mmt_seq_output[:, ocr_visual_begin:ocr_visual_end]
-        mmt_txt_linguistic_output = mmt_seq_output[:, txt_linguistic_begin:txt_linguistic_end]
-        mmt_ocr_linguistic_output = mmt_seq_output[:, ocr_linguistic_begin:ocr_linguistic_end]
+        mmt_txt_semantic_output = mmt_seq_output[:, txt_semantic_begin:txt_semantic_end]
+        mmt_ocr_semantic_output = mmt_seq_output[:, ocr_semantic_begin:ocr_semantic_end]
         mmt_s_o_output = mmt_seq_output[:, s_o_begin:s_o_end]
         mmt_obj_output = mmt_seq_output[:, obj_begin:obj_end]
         mmt_ocr_output = mmt_seq_output[:, ocr_begin:ocr_end]
@@ -576,8 +576,8 @@ class MMT(BertPreTrainedModel):
             'mmt_seq_output': mmt_seq_output,
             'mmt_txt_visual_output': mmt_txt_visual_output,
             'mmt_ocr_visual_output': mmt_ocr_visual_output,
-            'mmt_txt_linguistic_output': mmt_txt_linguistic_output,
-            'mmt_ocr_linguistic_output': mmt_ocr_linguistic_output,
+            'mmt_txt_semantic_output': mmt_txt_semantic_output,
+            'mmt_ocr_semantic_output': mmt_ocr_semantic_output,
             'mmt_s_o_output': mmt_s_o_output,
             'mmt_obj_output': mmt_obj_output,
             'mmt_ocr_output': mmt_ocr_output,
