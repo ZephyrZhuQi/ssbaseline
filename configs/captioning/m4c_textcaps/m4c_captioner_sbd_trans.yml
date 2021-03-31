@@ -5,18 +5,18 @@ dataset_attributes:
   m4c_textcaps:
     image_features:
       train:
-      - open_images/detectron_fix_100/fc6/train,m4c_textvqa_ocr_en_frcn_features/train_images
+      - open_images/detectron_fix_100/fc6/train,open_images/sbd_ocr_frcn_feature/train,open_images/sbd_trans_transformer_feature/train
       val:
-      - open_images/detectron_fix_100/fc6/train,m4c_textvqa_ocr_en_frcn_features/train_images
+      - open_images/detectron_fix_100/fc6/train,open_images/sbd_ocr_frcn_feature/train,open_images/sbd_trans_transformer_feature/train
       test:
-      - open_images/detectron_fix_100/fc6/test,m4c_textvqa_ocr_en_frcn_features/test_images
+      - open_images/detectron_fix_100/fc6/test,open_images/sbd_ocr_frcn_feature/test,open_images/sbd_trans_transformer_feature/test
     imdb_files:
       train:
-      - imdb/m4c_textcaps/imdb_train.npy
+      - imdb/agem_textcaps/imdb_train.npy
       val:
-      - imdb/m4c_textcaps/imdb_val_filtered_by_image_id.npy  # only one sample per image_id
+      - imdb/agem_textcaps/imdb_val_filtered_by_image_id.npy  # only one sample per image_id
       test:
-      - imdb/m4c_textcaps/imdb_test_filtered_by_image_id.npy  # only one sample per image_id
+      - imdb/agem_textcaps/imdb_test_filtered_by_image_id.npy  # only one sample per image_id
     processors:
       text_processor:
         type: bert_tokenizer
@@ -55,13 +55,13 @@ model_attributes:
       mmt_in_dim: 2048
       dropout_prob: 0.1
     ocr:
-      mmt_in_dim: 2952  # 300 (FastText) + 604 (PHOC) + 2048 (Faster R-CNN) + 50 (all zeros; legacy)
-      fc7_mmt_in_dim: 2048
-      semantic_mmt_in_dim: 904 # 300 (FastText) + 604 (PHOC)
+      mmt_in_dim: 3464  # 300 (FastText) + 604 (PHOC) + 2048 (Faster R-CNN) + 512(RecogCNN) # 50 (all zeros; legacy)
+      visual_mmt_in_dim: 2560 # 2048+512
+      semantic_mmt_in_dim: 1416 # 300 (FastText) + 604 (PHOC) + 512(RecogCNN)
       dropout_prob: 0.1
     mmt:
       hidden_size: 768
-      num_hidden_layers: 4
+      num_hidden_layers: 8
     classifier:
       type: linear
       ocr_max_num: 50

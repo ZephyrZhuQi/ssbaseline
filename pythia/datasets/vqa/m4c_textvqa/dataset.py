@@ -177,6 +177,7 @@ class M4CTextVQADataset(TextVQADataset):
             answer_processor_arg = {
                 "answers": answers,
                 "context_tokens": sample.context_tokens,
+                "context_length": sample.context_info_0.max_features,
             }
             processed_answers = self.answer_processor(answer_processor_arg)
 

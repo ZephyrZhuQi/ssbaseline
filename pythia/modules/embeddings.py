@@ -32,6 +32,8 @@ class TextEmbedding(nn.Module):
             self.module = BiLSTMTextEmbedding(**kwargs)
         elif emb_type == "attention":
             self.module = AttentionTextEmbedding(**kwargs)
+        elif emb_type == "attention_two":
+            self.module = AttentionTwoTextEmbedding(**kwargs)
         elif emb_type == "torch":
             vocab_size = kwargs["vocab_size"]
             embedding_dim = kwargs["embedding_dim"]
@@ -177,6 +179,75 @@ class AttentionTextEmbedding(nn.Module):
 
         return qtt_feature_concat
 
+class AttentionTwoTextEmbedding(nn.Module):
+    def __init__(self, hidden_dim, embedding_dim, num_layers, dropout, **kwargs):
+        super(AttentionTwoTextEmbedding, self).__init__()
+
+        self.text_out_dim = hidden_dim * kwargs["conv2_out"]
+
+        conv1_out = kwargs["conv1_out"]
+        conv2_out = kwargs["conv2_out"]
+        kernel_size = kwargs["kernel_size"]
+        padding = kwargs["padding"]
+
+        self.conv1 = nn.Conv1d(
+            in_channels=hidden_dim,
+            out_channels=conv1_out,
+            kernel_size=kernel_size,
+            padding=padding,
+        )
+        self.conv2 = nn.Conv1d(
+            in_channels=conv1_out,
+            out_channels=conv2_out,
+            kernel_size=kernel_size,
+            padding=padding,
+        )
+        self.relu = nn.ReLU()
+
+        self.conv1_semantic = nn.Conv1d(
+            in_channels=hidden_dim,
+            out_channels=conv1_out,
+            kernel_size=kernel_size,
+            padding=padding,
+        )
+        self.conv2_semantic = nn.Conv1d(
+            in_channels=conv1_out,
+            out_channels=conv2_out,
+            kernel_size=kernel_size,
+            padding=padding,
+        )
+        self.relu_semantic = nn.ReLU()
+
+
+    def forward(self, x):
+        batch_size = x.size(0)
+
+        bert_reshape = x.permute(0,2,1) # N * hidden_dim * T
+
+        qatt_conv1 = self.conv1(bert_reshape)  # N x conv1_out x T
+        qatt_relu = self.relu(qatt_conv1)
+        qatt_conv2 = self.conv2(qatt_relu)  # N x conv2_out x T
+
+        # Over last dim
+        qtt_softmax = nn.functional.softmax(qatt_conv2, dim=2)
+        # N * conv2_out * hidden_dim
+        qtt_feature = torch.bmm(qtt_softmax, x)
+        # N * (conv2_out * hidden_dim)
+        qtt_feature_concat = qtt_feature.view(batch_size, -1)
+
+        # semantic part self-attention
+        qatt_conv1_semantic = self.conv1_semantic(bert_reshape)  # N x conv1_out x T
+        qatt_relu_semantic = self.relu_semantic(qatt_conv1_semantic)
+        qatt_conv2_semantic = self.conv2_semantic(qatt_relu_semantic)  # N x conv2_out x T
+
+        # Over last dim
+        qtt_softmax_semantic = nn.functional.softmax(qatt_conv2_semantic, dim=2)
+        # N * conv2_out * hidden_dim
+        qtt_feature_semantic = torch.bmm(qtt_softmax_semantic, x)
+        # N * (conv2_out * hidden_dim)
+        qtt_feature_concat_semantic = qtt_feature_semantic.view(batch_size, -1)
+
+        return x, qtt_feature_concat, qtt_feature_concat_semantic
 
 class ImageEmbedding(nn.Module):
     """
