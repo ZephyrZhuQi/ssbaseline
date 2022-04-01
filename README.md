@@ -42,7 +42,7 @@ For the TextVQA dataset, we release: ssbaseline trained with ST-VQA as additiona
 
 | Datasets  | Config Files (under `configs/vqa/`)         | Pretrained Models | Metrics                     | Notes                         |
 |--------|------------------|----------------------------|-------------------------------|-------------------------------|
-| TextVQA (`m4c_textvqa`) | `m4c_textvqa/m4c_with_stvqa.yml` | [`ssbaseline_with_stvqa`](https://drive.google.com/file/d/11ERE9szZbkiKc_NUg9VF70m_CJcHz7F0/view?usp=sharing) | val accuracy - 45.53%; test accuracy - 45.66% | SBD-Trans OCRs; ST-VQA as additional data |
+| TextVQA (`m4c_textvqa`) | `m4c_textvqa/m4c_sbd.yml`(need to modify: add data imdb and feature files of stvqa) | [`ssbaseline_with_stvqa`](https://drive.google.com/file/d/11ERE9szZbkiKc_NUg9VF70m_CJcHz7F0/view?usp=sharing) | val accuracy - 45.53%; test accuracy - 45.66% | SBD-Trans OCRs; ST-VQA as additional data |
 
 ## Training and Evaluation
 
