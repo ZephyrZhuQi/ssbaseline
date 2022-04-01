@@ -49,4 +49,15 @@ For the TextVQA dataset, we release: ssbaseline trained with ST-VQA as additiona
 Please follow the [M4C README](https://github.com/ronghanghu/mmf/tree/project/m4c_captioner_pre_release/projects/M4C) for the training and evaluation of the M4C model on each dataset.
 
 
+## Questions and Answers from emails
+Question: 文章中各部分feature提取的代码有开源吗，因为要用在一些别的数据上希望可以自己提取特征
+
+Answer:
+各部分feature提取的代码比较多，我把我用到的给你说一下：
+1. 提取ocr bounding box中的feature，这种需要修改mask rcnn检测框架，把RPN层替换成bounding box，我使用的是这个repo中的代码：https://github.com/ronghanghu/vqa-maskrcnn-benchmark-m4c，需要配合提取feature的脚本：https://github.com/facebookresearch/mmf/blob/project/m4c/projects/M4C/scripts/extract_ocr_frcn_feature.py使用。
+2. 提取obj faster rcnn feature，这个不需要修改检测框架，直接提取就好，检测框架：https://gitlab.com/meetshah1995/vqa-maskrcnn-benchmark，脚本：https://github.com/facebookresearch/mmf/blob/master/tools/scripts/features/extract_features_vmb.py
+3. 获得ocr检测框的代码：https://github.com/Yuliang-Liu/Box_Discretization_Network，使用的模型是MLT 2017
+4. 基于ocr检测框获得文本识别结果 & 提取ocr Recog-CNN feature，这个文本识别的代码不是我写的，也没有开源，所以目前没法分享给你
+
+
 
