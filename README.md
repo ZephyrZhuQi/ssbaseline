@@ -50,13 +50,18 @@ Please follow the [M4C README](https://github.com/ronghanghu/mmf/tree/project/m4
 
 
 ## Questions and Answers from emails
-Question: 文章中各部分feature提取的代码有开源吗，因为要用在一些别的数据上希望可以自己提取特征
+Question: Feature Extraction(文章中各部分feature提取的代码有开源吗，因为要用在一些别的数据上希望可以自己提取特征)
 
 Answer:
-各部分feature提取的代码比较多，我把我用到的给你说一下：
-1. 提取ocr bounding box中的feature，这种需要修改mask rcnn检测框架，把RPN层替换成bounding box，我使用的是这个repo中的代码：https://github.com/ronghanghu/vqa-maskrcnn-benchmark-m4c，需要配合提取feature的脚本：https://github.com/facebookresearch/mmf/blob/project/m4c/projects/M4C/scripts/extract_ocr_frcn_feature.py使用。
-2. 提取obj faster rcnn feature，这个不需要修改检测框架，直接提取就好，检测框架：https://gitlab.com/meetshah1995/vqa-maskrcnn-benchmark，脚本：https://github.com/facebookresearch/mmf/blob/master/tools/scripts/features/extract_features_vmb.py
-3. 获得ocr检测框的代码：https://github.com/Yuliang-Liu/Box_Discretization_Network，使用的模型是MLT 2017
+There are various features, and their corresponding repositories are shown below:
+(各部分feature提取的代码比较多，我把我用到的给你说一下：)
+1. To get the feature from OCR bounding box, you need to modify the maskrcnn detection framework by replacing the RPN layer with the hardcoded bounding box. There is a [repo](https://github.com/ronghanghu/vqa-maskrcnn-benchmark-m4c), and you should use it together with the feature extraction [script](https://github.com/facebookresearch/mmf/blob/project/m4c/projects/M4C/scripts/extract_ocr_frcn_feature.py).
+1. 提取ocr bounding box中的feature，这种需要修改mask rcnn检测框架，把RPN层替换成bounding box，我使用的是这个repo中的[代码](https://github.com/ronghanghu/vqa-maskrcnn-benchmark-m4c)，需要配合提取feature的[脚本](https://github.com/facebookresearch/mmf/blob/project/m4c/projects/M4C/scripts/extract_ocr_frcn_feature.py)使用。
+2. To get the feature from OBJ bounding box, you don't need modify maskrcnn framework this time, which is this [repo](https://gitlab.com/meetshah1995/vqa-maskrcnn-benchmark). The corresponding extraction [script](https://github.com/facebookresearch/mmf/blob/master/tools/scripts/features/extract_features_vmb.py).
+2. 提取obj faster rcnn feature，这个不需要修改检测框架，直接提取就好，[检测框架](https://gitlab.com/meetshah1995/vqa-maskrcnn-benchmark)，[脚本](https://github.com/facebookresearch/mmf/blob/master/tools/scripts/features/extract_features_vmb.py)
+3. To get the OCR bounding box, we use this [repo](https://github.com/Yuliang-Liu/Box_Discretization_Network), and the model we used is MLT 2017.
+3. 获得ocr检测框的[代码](https://github.com/Yuliang-Liu/Box_Discretization_Network)，使用的模型是MLT 2017。
+4. Based on the OCR bounding box, to get the OCR recognition result & extract features, the code is not mine and not opensourced yet.
 4. 基于ocr检测框获得文本识别结果 & 提取ocr Recog-CNN feature，这个文本识别的代码不是我写的，也没有开源，所以目前没法分享给你
 
 
